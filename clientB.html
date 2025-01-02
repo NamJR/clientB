@@ -37,7 +37,7 @@
                 const connectionId = prompt("Enter Connection ID to receive the call");
 
                 console.log("Receiving Offer...");
-                const response = await fetch(`https://localhost:7171/api/Signal/offer/${connectionId}`);
+                const response = await fetch(`http://192.168.1.152:5221/api/Signal/offer/${connectionId}`);
 
                 if (!response.ok) {
                     throw new Error(`Failed to get Offer. HTTP Status: ${response.status}`);
@@ -86,11 +86,11 @@
                 const localStream = await getLocalVideoStream();
                 localStream.getTracks().forEach(track => localConnection.addTrack(track, localStream));
 
-                // Tạo Answer và trả về cho server
+                // Tạo Answer và trả về cho server 
                 const answer = await localConnection.createAnswer();
                 await localConnection.setLocalDescription(answer);
 
-                const answerResponse = await fetch(`https://localhost:7171/api/Signal/answer/${connectionId}`, {
+                const answerResponse = await fetch(`http://192.168.1.152:5221/api/Signal/answer/${connectionId}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(answer),
@@ -111,7 +111,7 @@
         // Gửi ICE Candidate đến server
         async function sendIceCandidate(candidate, connectionId) {
             try {
-                const response = await fetch(`https://localhost:7171/api/Signal/candidate/${connectionId}`, {
+                const response = await fetch(`http://192.168.1.152:5221/api/Signal/candidate/${connectionId}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(candidate),
