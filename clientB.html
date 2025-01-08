@@ -37,7 +37,7 @@
                 const connectionId = prompt("Enter Connection ID to receive the call");
 
                 console.log("Receiving Offer...");
-                const response = await fetch(`http://192.168.1.180:5221/api/Signal/offer/${connectionId}`);
+                const response = await fetch(`http://192.168.1.31:5221/api/Signal/offer/${connectionId}`);
 
                 if (!response.ok) {
                     throw new Error(`Failed to get Offer. HTTP Status: ${response.status}`);
@@ -78,6 +78,11 @@
                         sendIceCandidate(event.candidate, connectionId);
                     }
                 };
+                localConnection.ontrack = (event) => {
+    console.log("Received track from Client A:", event.streams[0]);
+    event.streams[0].getTracks().forEach((track) => remoteStream.addTrack(track));
+    document.getElementById('remoteVideo').srcObject = remoteStream;
+};
 
                 // Thiết lập Offer làm Remote Description
                 await localConnection.setRemoteDescription(new RTCSessionDescription(offer));
@@ -90,7 +95,7 @@
                 const answer = await localConnection.createAnswer();
                 await localConnection.setLocalDescription(answer);
 
-                const answerResponse = await fetch(`http://192.168.1.180:5221/api/Signal/answer/${connectionId}`, {
+                const answerResponse = await fetch(`http://192.168.1.31:5221/api/Signal/answer/${connectionId}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(answer),
@@ -111,7 +116,7 @@
         // Gửi ICE Candidate đến server
         async function sendIceCandidate(candidate, connectionId) {
             try {
-                const response = await fetch(`http://192.168.1.180:5221/api/Signal/candidate/${connectionId}`, {
+                const response = await fetch(`http://192.168.1.31:5221/api/Signal/candidate/${connectionId}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(candidate),
