@@ -7,155 +7,95 @@
 </head>
 <body>
     <h1>WebRTC Client B</h1>
-
     <button id="receiveCallButton">Receive Call</button>
-    <button id="pauseResumeVideoButton">Pause Video</button>
     <video id="remoteVideo" autoplay playsinline></video>
-    <video id="localVideo" autoplay playsinline muted></video>
 
     <script>
-        const SERVER_URL = "http://192.168.1.12:5221/api/Signal"; // Cập nhật đúng cổng server
-
+        const SERVER_URL = "http://192.168.1.72:5221/api/Signal";
         let localConnection;
         let connectionId = null;
-        let localStream = null;
 
-        // Lấy stream video của local
-        async function getLocalVideoStream() {
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                document.getElementById('localVideo').srcObject = localStream;
-                return localStream;
-            } catch (err) {
-                console.error("❌ Failed to get local stream:", err);
-            }
-        }
-
-        // Nhận cuộc gọi
         async function receiveCall() {
+            connectionId = prompt("📞 Enter Connection ID to receive the call:");
+            if (!connectionId) return;
+
+            console.log("📥 Receiving Offer...");
             try {
-                connectionId = prompt("📞 Enter Connection ID to receive the call:");
-                if (!connectionId) throw new Error("❌ Connection ID is required!");
-
-                console.log("📥 Receiving Offer...");
                 const response = await fetch(`${SERVER_URL}/offer/${connectionId}`);
-
-                if (!response.ok) {
-                    throw new Error(`❌ Failed to get Offer. HTTP Status: ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`❌ Failed to get Offer. HTTP Status: ${response.status}`);
 
                 const offer = await response.json();
                 console.log("✅ Offer received:", offer);
-
                 await handleOffer(offer);
-                alert("🎉 Connected successfully!");
-
+                fetchIceCandidates();
             } catch (error) {
                 console.error("🚨 Error receiving call:", error);
             }
         }
 
-        // Xử lý Offer và gửi Answer
         async function handleOffer(offer) {
-            try {
-                const config = {
-                    iceServers: [
-                        { urls: "stun:stun.l.google.com:19302" },  // STUN server miễn phí
-                        {
-                            urls: "turn:your-turn-server.com", // Thay bằng TURN server của bạn
-                            username: "user123",
-                            credential: "your_password"
-                        }
-                    ]
-                };
+            localConnection = new RTCPeerConnection({
+                iceServers: [
+                    { urls: "stun:stun.l.google.com:19302" },
+                ]
+            });
 
-                localConnection = new RTCPeerConnection(config);
+            localConnection.onicecandidate = event => {
+                if (event.candidate) sendIceCandidate(event.candidate);
+            };
 
-                // Lắng nghe ICE Candidate từ Client A
-                localConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        console.log("📤 Sending ICE Candidate:", event.candidate);
-                        sendIceCandidate(event.candidate);
-                    }
-                };
-
-                // Khi nhận stream từ Client A, hiển thị lên video
-                localConnection.ontrack = (event) => {
-                    console.log("📡 Receiving remote stream...");
+            localConnection.ontrack = event => {
+                console.log("📡 Receiving remote stream...");
+                if (event.streams && event.streams[0]) {
                     document.getElementById('remoteVideo').srcObject = event.streams[0];
-                };
-
-                // Thiết lập Offer từ Client A làm Remote Description
-                await localConnection.setRemoteDescription(new RTCSessionDescription(offer));
-
-                // Thêm local stream vào kết nối
-                const stream = await getLocalVideoStream();
-                stream.getTracks().forEach(track => localConnection.addTrack(track, stream));
-
-                // Tạo Answer và gửi lại server
-                const answer = await localConnection.createAnswer();
-                await localConnection.setLocalDescription(answer);
-
-                const answerResponse = await fetch(`${SERVER_URL}/answer/${connectionId}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(answer),
-                });
-
-                if (!answerResponse.ok) {
-                    throw new Error(`❌ Failed to send Answer. HTTP Status: ${answerResponse.status}`);
                 }
+            };
 
-                console.log("✅ Answer sent to server!");
+            await localConnection.setRemoteDescription(new RTCSessionDescription(offer));
 
-            } catch (error) {
-                console.error("🚨 Error handling Offer:", error);
-            }
+            const answer = await localConnection.createAnswer();
+            await localConnection.setLocalDescription(answer);
+
+            await fetch(`${SERVER_URL}/answer/${connectionId}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(answer),
+            });
+
+            console.log("✅ Answer sent to server!");
         }
 
-        // Gửi ICE Candidate đến server
         async function sendIceCandidate(candidate) {
+            if (!connectionId) return;
             try {
-                if (!connectionId) throw new Error("❌ Missing Connection ID!");
-
-                const response = await fetch(`${SERVER_URL}/candidate/${connectionId}`, {
+                await fetch(`${SERVER_URL}/candidate/${connectionId}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(candidate),
                 });
-
-                if (!response.ok) {
-                    throw new Error(`❌ Failed to send ICE Candidate. HTTP Status: ${response.status}`);
-                }
-
-                console.log("✅ ICE Candidate sent!");
-
             } catch (error) {
                 console.error("🚨 Error sending ICE Candidate:", error);
             }
         }
 
-        // Tạm dừng hoặc tiếp tục video
-        function toggleVideoPause() {
-            if (!localStream) return;
-
-            const videoTrack = localStream.getVideoTracks()[0];
-            if (!videoTrack) return;
-
-            if (videoTrack.enabled) {
-                videoTrack.enabled = false;
-                document.getElementById('pauseResumeVideoButton').textContent = 'Resume Video';
-            } else {
-                videoTrack.enabled = true;
-                document.getElementById('pauseResumeVideoButton').textContent = 'Pause Video';
-            }
+        async function fetchIceCandidates() {
+            setInterval(async () => {
+                if (!connectionId) return;
+                try {
+                    const response = await fetch(`${SERVER_URL}/candidate/${connectionId}`);
+                    if (response.ok) {
+                        const candidates = await response.json();
+                        candidates.forEach(candidate => {
+                            localConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                        });
+                    }
+                } catch (error) {
+                    console.error("🚨 Error fetching ICE Candidate:", error);
+                }
+            }, 2000);
         }
 
-        // Lắng nghe sự kiện click của nút "Receive Call"
         document.getElementById('receiveCallButton').addEventListener('click', receiveCall);
-
-        // Lắng nghe sự kiện click của nút "Pause/Resume Video"
-        document.getElementById('pauseResumeVideoButton').addEventListener('click', toggleVideoPause);
     </script>
 </body>
 </html>
