@@ -11,7 +11,7 @@
     <video id="remoteVideo" autoplay playsinline></video>
 
     <script>
-        const SERVER_URL = "http://192.168.1.72:5221/api/Signal";
+        const SERVER_URL = "http://192.168.1.72:5221/api/Signal"; // Cập nhật địa chỉ server của bạn
         let localConnection;
         let connectionId = null;
 
@@ -27,32 +27,35 @@
                 const offer = await response.json();
                 console.log("✅ Offer received:", offer);
                 await handleOffer(offer);
-                fetchIceCandidates();
+                await fetchIceCandidates();
             } catch (error) {
                 console.error("🚨 Error receiving call:", error);
             }
         }
 
         async function handleOffer(offer) {
-            localConnection = new RTCPeerConnection({
+            const config = {
                 iceServers: [
-                    { urls: "stun:stun.l.google.com:19302" },
+                    { urls: "stun:stun.l.google.com:19302" }, // STUN miễn phí
+                    {
+                        urls: "turn:your-turn-server.com", // Thay bằng TURN server của bạn
+                        username: "user123",
+                        credential: "your_password"
+                    }
                 ]
-            });
+            };
+
+            localConnection = new RTCPeerConnection(config);
 
             localConnection.onicecandidate = event => {
                 if (event.candidate) sendIceCandidate(event.candidate);
             };
 
             localConnection.ontrack = event => {
-                console.log("📡 Receiving remote stream...");
-                if (event.streams && event.streams[0]) {
-                    document.getElementById('remoteVideo').srcObject = event.streams[0];
-                }
+                document.getElementById('remoteVideo').srcObject = event.streams[0];
             };
 
             await localConnection.setRemoteDescription(new RTCSessionDescription(offer));
-
             const answer = await localConnection.createAnswer();
             await localConnection.setLocalDescription(answer);
 
