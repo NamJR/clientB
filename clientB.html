@@ -11,7 +11,7 @@
     <video id="remoteVideo" autoplay playsinline></video>
 
     <script>
-        const SERVER_URL = "http://192.168.1.72:5221/api/Signal"; // Cập nhật đúng địa chỉ server
+        const SERVER_URL = "http://192.168.1.72:5221/api/Signal"; // Cập nhật địa chỉ server của bạn
         let localConnection;
         let connectionId = null;
 
@@ -19,82 +19,64 @@
             connectionId = prompt("📞 Enter Connection ID to receive the call:");
             if (!connectionId) return;
 
-            console.log("📥 Fetching Offer...");
+            console.log("📥 Receiving Offer...");
             try {
                 const response = await fetch(`${SERVER_URL}/offer/${connectionId}`);
                 if (!response.ok) throw new Error(`❌ Failed to get Offer. HTTP Status: ${response.status}`);
 
                 const offer = await response.json();
                 console.log("✅ Offer received:", offer);
-
-                await setupPeerConnection();
-                await localConnection.setRemoteDescription(new RTCSessionDescription(offer));
-
-                console.log("🌐 Creating Answer...");
-                const answer = await localConnection.createAnswer();
-                await localConnection.setLocalDescription(answer);
-
-                console.log("📡 Sending Answer to Server...");
-                await fetch(`${SERVER_URL}/answer/${connectionId}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(answer),
-                });
-
-                console.log("✅ Answer sent successfully!");
+                await handleOffer(offer);
                 fetchIceCandidates();
             } catch (error) {
                 console.error("🚨 Error receiving call:", error);
             }
         }
 
-        async function setupPeerConnection() {
-            const config = {
+        async function handleOffer(offer) {
+            localConnection = new RTCPeerConnection({
                 iceServers: [
-                    { urls: "stun:stun.l.google.com:19302" }, // STUN server miễn phí
+                    { urls: "stun:stun.l.google.com:19302" },
+                    { urls: "stun:stun1.l.google.com:19302" },
+                    { urls: "stun:stun2.l.google.com:19302" },
                     {
-                        urls: "turn:your-turn-server.com", // Thay bằng TURN server của bạn nếu cần
-                        username: "user123",
-                        credential: "your_password"
+                        urls: "turn:relay1.expressturn.com:3478",
+                        username: "efQoCVOA1JzD3X7F",
+                        credential: "GdJDy7bPV9x5z8A7"
                     }
                 ]
-            };
+            });
 
-            localConnection = new RTCPeerConnection(config);
-
-            // Khi có ICE Candidate mới, gửi đến server
             localConnection.onicecandidate = event => {
                 if (event.candidate) sendIceCandidate(event.candidate);
             };
 
-            // Khi nhận video từ Client A
             localConnection.ontrack = event => {
-                console.log("📡 Receiving remote video stream...");
                 document.getElementById('remoteVideo').srcObject = event.streams[0];
             };
 
-            // Đảm bảo đàm phán lại nếu cần
-            localConnection.onnegotiationneeded = async () => {
-                console.log("🔄 Renegotiating connection...");
-                try {
-                    const offer = await localConnection.createOffer();
-                    await localConnection.setLocalDescription(offer);
-                } catch (error) {
-                    console.error("🚨 Error during renegotiation:", error);
-                }
-            };
+            await localConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+            const answer = await localConnection.createAnswer();
+            await localConnection.setLocalDescription(answer);
+
+            await fetch(`${SERVER_URL}/answer/${connectionId}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(answer),
+            });
+
+            console.log("✅ Answer sent to server!");
         }
 
         async function sendIceCandidate(candidate) {
             if (!connectionId) return;
             try {
-                console.log("📤 Sending ICE Candidate...");
                 await fetch(`${SERVER_URL}/candidate/${connectionId}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(candidate),
                 });
-                console.log("✅ ICE Candidate sent!");
             } catch (error) {
                 console.error("🚨 Error sending ICE Candidate:", error);
             }
@@ -104,14 +86,12 @@
             setInterval(async () => {
                 if (!connectionId) return;
                 try {
-                    console.log("🔄 Fetching ICE Candidates...");
                     const response = await fetch(`${SERVER_URL}/candidate/${connectionId}`);
                     if (response.ok) {
                         const candidates = await response.json();
                         candidates.forEach(candidate => {
                             localConnection.addIceCandidate(new RTCIceCandidate(candidate));
                         });
-                        console.log("✅ ICE Candidates added successfully!");
                     }
                 } catch (error) {
                     console.error("🚨 Error fetching ICE Candidate:", error);
