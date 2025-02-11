@@ -11,7 +11,7 @@
     <video id="remoteVideo" autoplay playsinline></video>
 
     <script>
-        const SERVER_URL = "http://192.168.1.72:5221/api/Signal"; // Cập nhật đúng IP máy chủ
+        const SERVER_URL = "http://192.168.1.72:5221/api/Signal"; // Cập nhật đúng địa chỉ server
         let localConnection;
         let connectionId = null;
 
@@ -50,20 +50,38 @@
 
         async function setupPeerConnection() {
             const config = {
-                iceServers: [{ urls: "stun:stun.l.google.com:19302" }] // Dùng STUN server miễn phí
+                iceServers: [
+                    { urls: "stun:stun.l.google.com:19302" }, // STUN server miễn phí
+                    {
+                        urls: "turn:your-turn-server.com", // Thay bằng TURN server của bạn nếu cần
+                        username: "user123",
+                        credential: "your_password"
+                    }
+                ]
             };
 
             localConnection = new RTCPeerConnection(config);
 
-            // Xử lý ICE Candidate từ WebRTC
+            // Khi có ICE Candidate mới, gửi đến server
             localConnection.onicecandidate = event => {
                 if (event.candidate) sendIceCandidate(event.candidate);
             };
 
-            // Khi nhận được stream từ Client A
+            // Khi nhận video từ Client A
             localConnection.ontrack = event => {
                 console.log("📡 Receiving remote video stream...");
                 document.getElementById('remoteVideo').srcObject = event.streams[0];
+            };
+
+            // Đảm bảo đàm phán lại nếu cần
+            localConnection.onnegotiationneeded = async () => {
+                console.log("🔄 Renegotiating connection...");
+                try {
+                    const offer = await localConnection.createOffer();
+                    await localConnection.setLocalDescription(offer);
+                } catch (error) {
+                    console.error("🚨 Error during renegotiation:", error);
+                }
             };
         }
 
