@@ -11,7 +11,7 @@
     <video id="remoteVideo" autoplay playsinline></video>
 
     <script>
-        const SERVER_URL = "http://192.168.1.72:5221/api/Signal"; // Cập nhật địa chỉ server của bạn
+        const SERVER_URL = "http://192.168.1.72:5221/api/Signal";
         let localConnection;
         let connectionId = null;
 
@@ -27,6 +27,8 @@
                 const offer = await response.json();
                 console.log("✅ Offer received:", offer);
                 await handleOffer(offer);
+
+                // Gọi hàm fetchIceCandidates để lấy ICE Candidate từ server
                 fetchIceCandidates();
             } catch (error) {
                 console.error("🚨 Error receiving call:", error);
@@ -39,11 +41,6 @@
                     { urls: "stun:stun.l.google.com:19302" },
                     { urls: "stun:stun1.l.google.com:19302" },
                     { urls: "stun:stun2.l.google.com:19302" },
-                    {
-                        urls: "turn:relay1.expressturn.com:3478",
-                        username: "efQoCVOA1JzD3X7F",
-                        credential: "GdJDy7bPV9x5z8A7"
-                    }
                 ]
             });
 
@@ -52,6 +49,7 @@
             };
 
             localConnection.ontrack = event => {
+                console.log("📡 Received track from Client A:", event.streams[0]);
                 document.getElementById('remoteVideo').srcObject = event.streams[0];
             };
 
@@ -84,7 +82,7 @@
 
         async function fetchIceCandidates() {
             setInterval(async () => {
-                if (!connectionId) return;
+                if (!connectionId || !localConnection.remoteDescription) return;
                 try {
                     const response = await fetch(`${SERVER_URL}/candidate/${connectionId}`);
                     if (response.ok) {
@@ -96,7 +94,7 @@
                 } catch (error) {
                     console.error("🚨 Error fetching ICE Candidate:", error);
                 }
-            }, 2000);
+            }, 1000);
         }
 
         document.getElementById('receiveCallButton').addEventListener('click', receiveCall);
