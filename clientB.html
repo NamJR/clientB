@@ -57,7 +57,10 @@
                 }
             };
 
-            await localConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            // Thay đổi địa chỉ IP trong SDP
+            let offerSDP = offer.sdp.replace("127.0.0.1", "192.168.1.72");  // Thay thế IP loopback bằng IP LAN
+            await localConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: offerSDP }));
+
             const answer = await localConnection.createAnswer();
             await localConnection.setLocalDescription(answer);
 
