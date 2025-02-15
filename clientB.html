@@ -37,12 +37,7 @@
                 iceServers: [
                     { urls: "stun:stun.l.google.com:19302" },
                     { urls: "stun:stun1.l.google.com:19302" },
-                    { urls: "stun:stun2.l.google.com:19302" },
-                    {
-                        urls: "turn:relay1.expressturn.com:3478",
-                        username: "efQoCVOA1JzD3X7F",
-                        credential: "GdJDy7bPV9x5z8A7"
-                    }
+                    { urls: "turn:turn.example.com:3478", username: "user", credential: "password" }
                 ]
             });
 
@@ -97,9 +92,9 @@
                     if (response.ok) {
                         const candidates = await response.json();
                         candidates.forEach(candidate => {
-                            localConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch(err => {
-                                console.error("🚨 Error adding ICE Candidate:", err);
-                            });
+                            localConnection.addIceCandidate(new RTCIceCandidate(candidate))
+                                .then(() => console.log("✅ ICE Candidate received and added:", candidate))
+                                .catch(err => console.error("🚨 Error adding ICE Candidate:", err));
                         });
                     }
                 } catch (error) {
