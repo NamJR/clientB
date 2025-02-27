@@ -11,7 +11,7 @@
     <video id="remoteVideo" autoplay playsinline></video>
 
     <script>
-        const SERVER_URL = "http://192.168.1.198:5221/api/Signal";
+        const SERVER_URL = "http://192.168.1.11:5221/api/Signal";
         let localConnection;
         let connectionId = null;
 
@@ -35,10 +35,16 @@
         async function handleOffer(offer) {
             localConnection = new RTCPeerConnection({
                 iceServers: [
-                    { urls: "stun:stun.l.google.com:19302" },
-                    { urls: "stun:stun1.l.google.com:19302" },
-                    { urls: "turn:turn.example.com:3478", username: "user", credential: "password" }
-                ]
+                  { urls: "stun:w1.xirsys.com" },
+                     { 
+                       urls: [
+                "turn:w1.xirsys.com:80?transport=udp",
+                "turn:w1.xirsys.com:3478?transport=udp",
+                            ],
+            username: "89ddbf36-ccdc-11e8-b472-8624bbdc6721",
+            credential: "89ddbfb8-ccdc-11e8-8a3d-a2ce2294350d"
+                     }
+                            ]
             });
 
             localConnection.onicecandidate = event => {
@@ -58,7 +64,7 @@
             };
 
             // Thay đổi địa chỉ IP trong SDP
-            let offerSDP = offer.sdp.replace("127.0.0.1", "192.168.1.72");  // Thay thế IP loopback bằng IP LAN
+            let offerSDP = offer.sdp.replace("127.0.0.1", "192.168.1.198");  // Thay thế IP loopback bằng IP LAN
             await localConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: offerSDP }));
 
             const answer = await localConnection.createAnswer();
