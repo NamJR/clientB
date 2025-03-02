@@ -15,6 +15,22 @@
         let localConnection;
         let connectionId = null;
 
+        // Lấy thông tin TURN từ server
+        async function getTurnServerInfo() {
+            try {
+                const response = await fetch(`${SERVER_URL}/turn`);
+                if (response.ok) {
+                    const turnInfo = await response.json();
+                    return turnInfo.iceServers;
+                } else {
+                    throw new Error("❌ Failed to fetch TURN server info.");
+                }
+            } catch (err) {
+                console.error("❌ Error getting TURN server info:", err);
+                throw err;
+            }
+        }
+
         async function receiveCall() {
             connectionId = prompt("📞 Enter Connection ID to receive the call:");
             if (!connectionId) return;
@@ -33,21 +49,11 @@
         }
 
         async function handleOffer(offer) {
+            // Lấy TURN server info từ server
+            const iceServers = await getTurnServerInfo();
+
             localConnection = new RTCPeerConnection({
-                iceServers: [{
-   urls: [ "stun:ntk-turn-2.xirsys.com" ]
-}, {
-   username: "xPpotZbL7TEq1akMSWhKVT-x3jciV7887eui-aexWdH17KZUnZA7jV_vLMo2kVhCAAAAAGfAlQtob2FuZ25hbQ==",
-   credential: "4a0e304e-f529-11ef-bd8a-0242ac120004",
-   urls: [
-       "turn:ntk-turn-2.xirsys.com:80?transport=udp",
-       "turn:ntk-turn-2.xirsys.com:3478?transport=udp",
-       "turn:ntk-turn-2.xirsys.com:80?transport=tcp",
-       "turn:ntk-turn-2.xirsys.com:3478?transport=tcp",
-       "turns:ntk-turn-2.xirsys.com:443?transport=tcp",
-       "turns:ntk-turn-2.xirsys.com:5349?transport=tcp"
-   ]
-}]
+                iceServers: iceServers // Sử dụng TURN server lấy từ API
             });
 
             localConnection.onicecandidate = event => {
