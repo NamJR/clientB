@@ -11,25 +11,9 @@
     <video id="remoteVideo" autoplay playsinline></video>
 
     <script>
-        const SERVER_URL = "http://192.168.1.11:5221/api/Signal";
+        const SERVER_URL = "http://192.168.1.251:5221/api/Signal";
         let localConnection;
         let connectionId = null;
-
-        // Lấy thông tin TURN từ server
-        async function getTurnServerInfo() {
-            try {
-                const response = await fetch(`${SERVER_URL}/turn`);
-                if (response.ok) {
-                    const turnInfo = await response.json();
-                    return turnInfo.iceServers;
-                } else {
-                    throw new Error("❌ Failed to fetch TURN server info.");
-                }
-            } catch (err) {
-                console.error("❌ Error getting TURN server info:", err);
-                throw err;
-            }
-        }
 
         async function receiveCall() {
             connectionId = prompt("📞 Enter Connection ID to receive the call:");
@@ -49,11 +33,13 @@
         }
 
         async function handleOffer(offer) {
-            // Lấy TURN server info từ server
-            const iceServers = await getTurnServerInfo();
+            // Không cần lấy TURN server từ API nữa
+            const iceServers = [
+                { urls: "stun:stun.l.google.com:19302" } // Sử dụng STUN server mặc định
+            ];
 
             localConnection = new RTCPeerConnection({
-                iceServers: iceServers // Sử dụng TURN server lấy từ API
+                iceServers: iceServers // Chỉ dùng STUN
             });
 
             localConnection.onicecandidate = event => {
