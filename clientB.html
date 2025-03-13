@@ -8,13 +8,28 @@
 <body>
     <h1>WebRTC Client B</h1>
     <button id="receiveCallButton">Receive Call</button>
+    <video id="localVideo" autoplay playsinline muted></video>
     <video id="remoteVideo" autoplay playsinline></video>
 
     <script>
-        const SERVER_URL = "http://192.168.1.251:5221/api/Signal";
+        const SERVER_URL = "http://192.168.1.7:5221/api/Signal"; // Địa chỉ API của server
         let localConnection;
         let connectionId = null;
+        let localStream;
 
+        // Lấy luồng video từ webcam
+        async function getLocalVideoStream() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('localVideo').srcObject = localStream;
+                return localStream;
+            } catch (err) {
+                console.error("❌ Failed to get local stream:", err);
+                throw err;
+            }
+        }
+
+        // Nhận cuộc gọi và lấy thông tin kết nối
         async function receiveCall() {
             connectionId = prompt("📞 Enter Connection ID to receive the call:");
             if (!connectionId) return;
@@ -32,36 +47,46 @@
             }
         }
 
+        // Xử lý offer từ Client A
         async function handleOffer(offer) {
-            // Không cần lấy TURN server từ API nữa
-            const iceServers = [
-                { urls: "stun:stun.l.google.com:19302" } // Sử dụng STUN server mặc định
-            ];
-
+            // Khởi tạo peer connection với STUN và TURN giống Client A
             localConnection = new RTCPeerConnection({
-                iceServers: iceServers // Chỉ dùng STUN
+                iceServers: [
+                    { urls: "stun:ss-turn2.xirsys.com" },  // STUN server
+                    { 
+                        username: "TbA6DVsXL1TQp7IuvAbafLpc-AA_j_632XYXg7pp3OKIMbopbQL6kvkXiFfeNm7bAAAAAGfKnX5uYW1qcjE1MTE=", 
+                        credential: "33fa8d42-fb24-11ef-809a-0242ac140004", 
+                        urls: [
+                            "turn:ss-turn2.xirsys.com:80?transport=udp",
+                            "turn:ss-turn2.xirsys.com:3478?transport=udp",
+                            "turn:ss-turn2.xirsys.com:80?transport=tcp",
+                            "turn:ss-turn2.xirsys.com:3478?transport=tcp",
+                            "turns:ss-turn2.xirsys.com:443?transport=tcp",
+                            "turns:ss-turn2.xirsys.com:5349?transport=tcp"
+                        ]
+                    }
+                ]
             });
 
+            // Xử lý ICE candidate
             localConnection.onicecandidate = event => {
                 if (event.candidate) sendIceCandidate(event.candidate);
             };
 
+            // Nhận track video từ Client A
             localConnection.ontrack = event => {
                 console.log("📡 Received track from Client A:", event.streams[0]);
-                if (event.streams.length > 0) {
-                    const remoteVideo = document.getElementById('remoteVideo');
-                    remoteVideo.srcObject = event.streams[0];
-                    remoteVideo.load();
-                    console.log("✅ Video stream set!");
-                } else {
-                    console.warn("⚠ No streams received!");
-                }
+                document.getElementById('remoteVideo').srcObject = event.streams[0];
             };
 
-            // Thay đổi địa chỉ IP trong SDP
-            let offerSDP = offer.sdp.replace("127.0.0.1", "192.168.1.11");  // Thay thế IP loopback bằng IP LAN
-            await localConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: offerSDP }));
+            // Lấy luồng video cục bộ và thêm vào peer connection
+            localStream = await getLocalVideoStream();
+            localStream.getTracks().forEach(track => localConnection.addTrack(track, localStream));
 
+            // Thiết lập remote description với offer từ Client A
+            await localConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+            // Tạo answer và gửi lại cho server
             const answer = await localConnection.createAnswer();
             await localConnection.setLocalDescription(answer);
 
@@ -72,9 +97,10 @@
             });
 
             console.log("✅ Answer sent to server!");
-            fetchIceCandidates(); // 🛠 Gọi fetch ICE ngay sau khi gửi Answer
+            fetchIceCandidates();
         }
 
+        // Gửi ICE candidate tới server
         async function sendIceCandidate(candidate) {
             if (!connectionId) return;
             try {
@@ -88,6 +114,7 @@
             }
         }
 
+        // Lấy ICE candidates từ server và thêm vào peer connection
         async function fetchIceCandidates() {
             setInterval(async () => {
                 if (!connectionId || !localConnection.remoteDescription) return;
@@ -97,14 +124,14 @@
                         const candidates = await response.json();
                         candidates.forEach(candidate => {
                             localConnection.addIceCandidate(new RTCIceCandidate(candidate))
-                                .then(() => console.log("✅ ICE Candidate received and added:", candidate))
+                                .then(() => console.log("✅ ICE Candidate added:", candidate))
                                 .catch(err => console.error("🚨 Error adding ICE Candidate:", err));
                         });
                     }
                 } catch (error) {
                     console.error("🚨 Error fetching ICE Candidate:", error);
                 }
-            }, 2000);
+            }, 1000);
         }
 
         document.getElementById('receiveCallButton').addEventListener('click', receiveCall);
